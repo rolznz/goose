@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -18,10 +19,11 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Settings};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
+use nwc::prelude::*;
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, instrument, warn};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -69,6 +71,11 @@ pub enum AgentEvent {
 
 impl Agent {
     pub fn new() -> Self {
+        // TODO: put this somewhere else
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install rustls crypto provider");
+
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
@@ -571,6 +578,61 @@ impl Agent {
             debug!("user_message" = &content);
         }
 
+        async fn charge_user(amount_sat: u64, message: &str) -> Result<(), nwc::Error> {
+            let nwc_user_url = std::env::var("GOOSE_NWC_USER_URL").ok();
+            let nwc_service_url = std::env::var("GOOSE_NWC_SERVICE_URL").ok();
+
+            if nwc_user_url.is_some() && nwc_service_url.is_some() {
+                warn!(
+                    "NWC URLs set. Service requires payment of {} sats. Message: {}",
+                    amount_sat, message
+                );
+
+                let nwc_user_uri: NostrWalletConnectURI =
+                    NostrWalletConnectURI::from_str(nwc_user_url.unwrap().as_str())
+                        .expect("Failed to parse NWC URI");
+                let nwc_service_uri: NostrWalletConnectURI =
+                    NostrWalletConnectURI::from_str(nwc_service_url.unwrap().as_str())
+                        .expect("Failed to parse NWC URI");
+                let user_nwc: NWC = NWC::new(nwc_user_uri);
+                let service_nwc: NWC = NWC::new(nwc_service_uri);
+
+                let make_invoice_request = MakeInvoiceRequest {
+                    amount: amount_sat * 1000, // msat
+                    description: Some(format!("Freepilot payment: {}", message)),
+                    description_hash: None,
+                    expiry: None,
+                };
+                // TODO: add retries
+                let invoice = match service_nwc.make_invoice(make_invoice_request).await {
+                    Ok(invoice) => invoice,
+                    Err(e) => {
+                        error!("Failed to make service invoice: {}", e);
+                        return Err(e);
+                    }
+                };
+
+                let pay_invoice_request = PayInvoiceRequest::new(invoice.invoice);
+                let pay_invoice_response = match user_nwc.pay_invoice(pay_invoice_request).await {
+                    Ok(invoice) => invoice,
+                    Err(e) => {
+                        error!("Failed to pay service invoice: {}", e);
+                        return Err(e);
+                    }
+                };
+                warn!("pay invoice response {:?}", pay_invoice_response);
+            }
+
+            Ok(())
+        }
+
+        match charge_user(1000, "initial service fee").await {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(anyhow!("failed to pay initial service fee: {e}"));
+            }
+        };
+
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
@@ -586,6 +648,29 @@ impl Agent {
                         if let Some(session_config) = session.clone() {
                             Self::update_session_metrics(session_config, &usage, messages.len()).await?;
                         }
+
+                        // Claude Sonnet:
+                        // $3/M input tokens $15/M output tokens
+                        // 3000 sats / M input tokens 15000 sats / M output tokens
+                        let input_tokens = usage.usage.input_tokens.unwrap_or(0);
+                        let output_tokens = usage.usage.output_tokens.unwrap_or(0);
+                        let input_tokens_f = input_tokens as f32;
+                        let output_tokens_f = output_tokens as f32;
+                        let cost = ((input_tokens_f * 3.0) / 1_000_000.0 * 1000.0) + ((output_tokens_f * 15.0) / 1_000_000.0 * 1000.0);
+                        let cost_rounded = cost.ceil() as u64;
+
+                        warn!("usage cost {:?} cost: {} sats", usage.usage, cost_rounded);
+
+                        match charge_user(cost_rounded, format!("agent iteration tokens: {input_tokens} input, {output_tokens} output").as_str()).await {
+                            Ok(_) => {},
+                            Err(e) => {
+                                yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Failed to pay service fee in agent loop: {e}"),
+                                ));
+                                break;
+                            }
+                        }
+
 
                         // categorize the type of requests we need to handle
                         let (frontend_requests,
