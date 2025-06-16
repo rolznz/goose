@@ -38,9 +38,9 @@ jobs:
       matrix:
         os: ${{ fromJson(inputs.operating-systems) }}
         architecture: ${{ fromJson(inputs.architectures) }}
-        #include:
-        #  - os: ubuntu-latest
-        #    target-suffix: unknown-linux-gnu
+        include:
+          - os: ubuntu-latest
+            target-suffix: unknown-linux-gnu
         #  - os: macos-latest
         #    target-suffix: apple-darwin
 
