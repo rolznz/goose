@@ -15,11 +15,13 @@ on:
       operating-systems:
         type: string
         required: false
-        default: '["ubuntu-latest","macos-latest"]'
+        #default: '["ubuntu-latest","macos-latest"]'
+        default: '["ubuntu-22.04"]'
       architectures:
         type: string
         required: false
-        default: '["x86_64","aarch64"]'
+        #default: '["x86_64","aarch64"]'
+        default: '["x86_64"]'
       ref:
         type: string
         required: false
@@ -36,11 +38,11 @@ jobs:
       matrix:
         os: ${{ fromJson(inputs.operating-systems) }}
         architecture: ${{ fromJson(inputs.architectures) }}
-        include:
-          - os: ubuntu-latest
-            target-suffix: unknown-linux-gnu
-          - os: macos-latest
-            target-suffix: apple-darwin
+        #include:
+        #  - os: ubuntu-latest
+        #    target-suffix: unknown-linux-gnu
+        #  - os: macos-latest
+        #    target-suffix: apple-darwin
 
     steps:
       - name: Checkout code
