@@ -1,7 +1,4 @@
-# This is a **reuseable** workflow that bundles the Desktop App for macOS.
-# It doesn't get triggered on its own. It gets used in multiple workflows:
-#  - release.yml
-#  - canary.yml
+
 on:
   workflow_call:
     inputs:
@@ -50,6 +47,13 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+      
+      - name: Install GCC 12
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-12 g++-12
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 60
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 60
 
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
