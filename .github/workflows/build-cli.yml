@@ -39,7 +39,7 @@ jobs:
         os: ${{ fromJson(inputs.operating-systems) }}
         architecture: ${{ fromJson(inputs.architectures) }}
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             target-suffix: unknown-linux-gnu
         #  - os: macos-latest
         #    target-suffix: apple-darwin
