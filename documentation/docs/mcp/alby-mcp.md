@@ -207,7 +207,7 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
   1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20Goose%20to%20your%20Bitcoin%20Lightning%20Wallet)
   2. Press `Yes` to confirm the installation
   3. Change the type to "Server-Sent Events (SSE)"
-  4. Change the endpoint. To get your endpoint URL, open browser devtools (right click -> inspect) and enter this in the console, with your own NWC connection secret set:_
+  4. Change the endpoint. To get your endpoint URL, open browser devtools (right click -> inspect) and enter this in the console, with your own NWC connection secret set:
       ```js
         "https://mcp.getalby.com/sse?nwc=" + encodeURIComponent("nostr+walletconnect://...");
       ```
