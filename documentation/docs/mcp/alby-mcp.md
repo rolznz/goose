@@ -9,7 +9,6 @@ import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
 
 This tutorial covers how to add the [Alby MCP Server](https://github.com/getalby/mcp) as a Goose extension to interact with your lightning wallet, make and receive payments, list transactions, convert fiat amounts to sats, request invoices from lightning addresses, and interact with paid MCP tools (such as ones built with [LMCP](https://github.com/getAlby/lmcp)).
